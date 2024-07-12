@@ -10,7 +10,6 @@ from binary_search import bisect_left
 from typing import Set, Dict
 
 from atf import ATF, min_atf
-from ttf import TTF
 from trip import Bus, Walk
 
 
@@ -95,10 +94,8 @@ class TransportGraph:
         timetables = []
         for i, v in self.graph.items():
             for i0, v0 in v.items():
-                if type(v0) is ATF:
+                if v0.buses:
                     timetables += [len(v0.buses)]
-                elif type(v0) is TTF:
-                    timetables += [len(v0.transports)]
         timetables = np.array(timetables)
         return {'min_size': timetables.min(),
                 'mean_size': timetables.mean(),
@@ -196,7 +193,12 @@ class TransportGraph:
                 for node2, f in out.items():
                     self.position_in_edge[node1][i][node2] = bisect_left(f.buses, dep, key=lambda x: x.d)
 
-    def fractional_cascading_precomputation(self):
+    def fractional_cascading_precomputation(self, sort_strategy='ascending'):
+        if sort_strategy == 'ascending':
+            sort_function = lambda x: len(x[1].buses)
+        else:
+            sort_function = lambda x: -len(x[1].buses)
+
         for node1, out in tqdm(self.graph.items()):
             m_arr = []
             arr = []
@@ -204,7 +206,7 @@ class TransportGraph:
             walking_nodes = []
             i = 0
 
-            for node2, f in sorted(out.items(), key=lambda x: len(x[1].buses)):
+            for node2, f in sorted(out.items(), key=sort_function):
                 if i == 0:
                     full_list = [bus.d for bus in f.buses]
                     if full_list:
@@ -335,7 +337,14 @@ class ContactionTransportGraph(TransportGraph):
                 for node2, f in out.items():
                     self.position_in_edge[node1][i][node2] = bisect_left(f.buses, dep, key=lambda x: x.d)
 
-    def fractional_cascading_precomputation(self):
+    def fractional_cascading_precomputation(self, sort_strategy='ascending'):
+        if sort_strategy == 'ascending':
+            sort_function = lambda x: len(x[1].buses)
+        elif sort_strategy == 'contraction_hierarchy':
+            sort_function = lambda x: -self.hierarchy[x[0]]
+        else:
+            sort_function = lambda x: -len(x[1].buses)
+
         for node1, out in tqdm(self.graph.items()):
             m_arr = []
             arr = []
@@ -343,7 +352,7 @@ class ContactionTransportGraph(TransportGraph):
             walking_nodes = []
             i = 0
 
-            for node2, f in sorted(out.items(), key=lambda x: -self.hierarchy[x[0]]):
+            for node2, f in sorted(out.items(), key=sort_function):
                 if i == 0:
                     full_list = [bus.d for bus in f.buses]
                     if full_list:
@@ -395,6 +404,7 @@ class ContactionTransportGraph(TransportGraph):
             i = 0
 
             for node2, f in sorted(out.items(), key=lambda x: len(x[1].buses)):
+
                 if i == 0:
                     full_list = [bus.d for bus in f.buses]
                     if full_list:
