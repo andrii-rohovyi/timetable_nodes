@@ -73,9 +73,9 @@ class FCH:
                     while (winner_node != self.target) and (not exception):
                         exception = _check_running_time(start_time, duration, "FCH")
 
-                        m_arr = self.graph.m_arr_fractional_old.get(winner_node)
-                        pointers = self.graph.pointers_old.get(winner_node)
-                        reachable_nodes = self.graph.reachable_nodes_old.get(winner_node)
+                        m_arr = self.graph.m_arr_fractional.get(winner_node)
+                        pointers = self.graph.pointers.get(winner_node)
+                        reachable_nodes = self.graph.reachable_nodes.get(winner_node)
                         out = self.graph.graph.get(winner_node)
                         down_move = self.candidate_down_move[winner_node]
                         if pointers:
@@ -134,7 +134,7 @@ class FCH:
                                         out, node,
                                         start_index,
                                         True)
-                        for node in self.graph.walking_nodes_old.get(winner_node, []):
+                        for node in self.graph.walking_nodes.get(winner_node, []):
                             if not self.candidate_down_move[winner_node]:
                                 if self.graph.hierarchy[node] > self.graph.hierarchy[winner_node]:
                                     self._update_vertex_with_node_index_fractional_cascading_walk_profile(

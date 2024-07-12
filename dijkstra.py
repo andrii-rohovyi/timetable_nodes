@@ -9,7 +9,6 @@ from binary_search import bisect_left
 from graph import TransportGraph
 from algorithms_wrapper import _check_running_time
 from utils import to_milliseconds
-from ttf import TTF
 from atf import ATF
 
 
@@ -57,6 +56,7 @@ class Dijkstra:
                     pointers = self.graph.pointers.get(winner_node)
                     reachable_nodes = self.graph.reachable_nodes.get(winner_node)
                     out = self.graph.graph.get(winner_node)
+
                     if pointers:
                         start_index, next_loc = pointers[0][bisect_left(m_arr[0], winner_weight)]
 
@@ -75,6 +75,7 @@ class Dijkstra:
                                                                                                  winner_weight,
                                                                                                  out, node, start_index)
                     for node in self.graph.walking_nodes.get(winner_node, []):
+
                         self._update_vertex_with_node_index_fractional_cascading_walk_profile(winner_node,
                                                                                               winner_weight, out, node)
 
@@ -152,14 +153,14 @@ class Dijkstra:
             'duration': to_milliseconds(time.monotonic() - start_time)
         }
 
-    def _update_vertex(self, node: int, winner_node: int, winner_weight: int, f: Union[ATF, TTF]):
+    def _update_vertex(self, node: int, winner_node: int, winner_weight: int, f: ATF):
         """
         Update vertex iteration in Dijkstra
 
         :param node: int Node information about which we update
         :param winner_node: int. Parent node from each we reach this node
         :param winner_weight: Time in unix at which we have been at winner_node
-        :param f: Union[ATF, TTF] Function, which represent movement from winner_node to node
+        :param f: ATF Function, which represent movement from winner_node to node
         :return:
         """
         new_weight, sequence_nodes, route_names = f.arrival(winner_weight)
@@ -270,6 +271,7 @@ class Dijkstra:
         """
 
         f = out[node]
+
         if f.walk:
             walk_time = winner_weight + f.walk.w
             new_weight, sequence_nodes, route_names = walk_time, f.walk.nodes, f.walk.route_names
