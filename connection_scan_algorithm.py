@@ -9,6 +9,15 @@ from utils import to_milliseconds
 
 class ConnectionScanAlgorithm:
     def __init__(self, graph: Timetable, start_time: int, start_node: int, end_node: int):
+        """
+        Implementation of the connection scan algorithm. Link on the paper: https://arxiv.org/pdf/1703.05997
+        Parameters
+        ----------
+        graph: Timetable datastructure
+        start_time: unix_start_time
+        start_node: index of start node
+        end_node: index of end node
+        """
         self.graph = graph
 
         self.source = start_node
@@ -19,6 +28,12 @@ class ConnectionScanAlgorithm:
         self.path = {start_node: [start_node]}
 
     def shortest_path(self):
+        """
+        Finding shortest path with CSA alforithm Figure 4 in paper.
+        Returns
+        -------
+
+        """
         start_time = time.monotonic()
         for node, f in self.graph.walk_graph[self.source].items():
             self.s[node] = self.start_time + f
