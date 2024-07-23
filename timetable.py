@@ -16,14 +16,12 @@ class Timetable:
         transport_connections_df = transport_connections.copy(deep=True)
         transport_connections_df = transport_connections_df.sort_values(by=['dep_time_ut', 'arr_time_ut'])
         transport_connections_df['route_I'] = transport_connections_df['route_I'].astype(str)
-        self.transport_connections_df = transport_connections_df.copy()
-        self.departure_times = self.transport_connections_df['dep_time_ut'].tolist()
+        self.transport_connections_df = transport_connections_df[['from_stop_I', 'to_stop_I', 'dep_time_ut',
+                                                                  'arr_time_ut', 'route_I']].to_dict('records')
+        self.departure_times = transport_connections_df['dep_time_ut'].tolist()
 
         walk_connections_dict = walk_connections.set_index(['from_stop_I', 'to_stop_I'])['d_walk'].to_dict()
-
-        self.graph = defaultdict(dict)
         self.walk_graph = defaultdict(dict)
-        self.f = defaultdict(dict)
 
         for adjacent_node, node in set(walk_connections_dict.keys()):
             walk_duration = walk_connections_dict.get((adjacent_node, node))

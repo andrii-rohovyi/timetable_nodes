@@ -29,7 +29,7 @@ class ConnectionScanAlgorithm:
 
     def shortest_path(self):
         """
-        Finding shortest path with CSA alforithm Figure 4 in paper.
+        Finding shortest path with CSA algorithm Figure 4 in paper.
         Returns
         -------
 
@@ -41,9 +41,12 @@ class ConnectionScanAlgorithm:
             self.path[node] = [self.source, node]
 
         index = bisect_left(self.graph.departure_times, self.start_time)
-        row = self.graph.transport_connections_df.iloc[index]
+        row = self.graph.transport_connections_df[index]
+        zero_len_old = False
+        zero_len_first_index = 0
 
         while True:
+            reiterate = False
 
             if self.s.get(self.target, math.inf) <= row['dep_time_ut']:
                 return {
@@ -54,8 +57,10 @@ class ConnectionScanAlgorithm:
                 }
 
             if self.s.get(row['from_stop_I'], math.inf) <= row['dep_time_ut']:
-
-                if row['arr_time_ut'] < self.s.get(row['to_stop_I'], math.inf):
+                arrival_to_stop = self.s.get(row['to_stop_I'], math.inf)
+                if row['arr_time_ut'] < arrival_to_stop:
+                    if (row['arr_time_ut'] == row['dep_time_ut']) & (arrival_to_stop != math.inf):
+                        reiterate = True
                     self.s[row['to_stop_I']] = row['arr_time_ut']
                     self.routes[row['to_stop_I']] = self.routes[row['from_stop_I']] + [row['route_I']]
                     self.path[row['to_stop_I']] = self.path[row['from_stop_I']] + [row['to_stop_I']]
@@ -67,9 +72,18 @@ class ConnectionScanAlgorithm:
                             self.routes[node] = self.routes[row['to_stop_I']] + ['walk']
                             self.path[node] = self.path[row['to_stop_I']] + [node]
 
-            index += 1
+            zero_len = row['arr_time_ut'] == row['dep_time_ut']
+            if (zero_len) & (not zero_len_old):
+                zero_len_first_index = index
+            zero_len_old = zero_len
+
+            if reiterate:
+                index = zero_len_first_index
+            else:
+                index += 1
+
             if index < len(self.graph.transport_connections_df):
-                row = self.graph.transport_connections_df.iloc[index]
+                row = self.graph.transport_connections_df[index]
             else:
                 message = f"Target {self.target} not reachable from node {self.source}"
                 logging.warning(message)
