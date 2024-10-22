@@ -27,7 +27,7 @@ class Bus:
 
     def __eq__(self, other):
         """
-        Equality means that 2 busses have the same start_time
+        Equality means that 2 buses have the same start_time
         :param other:
         :return:
         """
