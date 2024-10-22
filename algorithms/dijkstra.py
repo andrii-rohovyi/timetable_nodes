@@ -4,12 +4,12 @@ import time
 import math
 import logging
 # from bisect import bisect_left
-from binary_search import bisect_left
+from helpers.binary_search import bisect_left
 
-from graph import TransportGraph
-from algorithms_wrapper import _check_running_time
-from utils import to_milliseconds
-from atf import ATF
+from data_structures.graph import TransportGraph
+from algorithms.algorithms_wrapper import _check_running_time
+from helpers.utils import to_milliseconds
+from helpers.atf import ATF
 
 
 class Dijkstra:
@@ -37,84 +37,99 @@ class Dijkstra:
 
     def shortest_path(self,
                       duration: Union[float, None] = None,
-                      optimized_binary_search: bool = True,
-                      fractional_cascading: bool = False
+                      time_table_nodes: str = None,
                       ) -> Dict[str, Union[List[Union[int, str]], int]]:
+        """
+        Adaptation of Dijkstra with TTN
+
+        Parameters
+        ----------
+        duration: maximum duration of algorithm running
+        time_table_nodes: Type of TTN. Possible types: 'cst', 'fc'
+            More details about all of these options, you could find here: https://arxiv.org/pdf/2410.15715
+
+        Returns
+        -------
+
+        """
 
         exception = None
 
         winner_node = self.source
         winner_weight = self.start_time
-        if optimized_binary_search:
-            if fractional_cascading:
-                start_time = time.monotonic()
-                while (winner_node != self.target) and (not exception):
+        if time_table_nodes == 'cst':
+            start_time = time.monotonic()
+            while (winner_node != self.target) and (not exception):
 
-                    exception = _check_running_time(start_time, duration, "Dijkstra")
+                exception = _check_running_time(start_time, duration, "Dijkstra")
 
-                    m_arr = self.graph.m_arr_fractional.get(winner_node)
-                    pointers = self.graph.pointers.get(winner_node)
-                    reachable_nodes = self.graph.reachable_nodes.get(winner_node)
-                    out = self.graph.graph.get(winner_node)
+                departure = bisect_left(self.graph.nodes_schedule[winner_node], winner_weight)
+                nodes_indexes = self.graph.position_in_edge[winner_node].get(
+                    departure)  # {nodeA: start_index, nodeB: start_index}
 
-                    if pointers:
-                        start_index, next_loc = pointers[0][bisect_left(m_arr[0], winner_weight)]
+                for node, f in self.graph.graph[winner_node].items():
+                    self._update_vertex_with_node_index_cst(node, winner_node, winner_weight, nodes_indexes)
 
-                        node = reachable_nodes[0]
-                        self._update_vertex_with_node_index_fractional_cascading_bus_profile(winner_node, winner_weight,
-                                                                                             out, node, start_index)
+                try:
+                    winner_node, winner_weight = self.candidate_priorities.popitem()
+                except IndexError:
+                    message = f"Target {self.target} not reachable from node {self.source}"
+                    logging.warning(message)
+                    return {
+                        'path': [],
+                        'routes': [],
+                        'roots': [],
+                        'arrival': math.inf,
+                        'duration': to_milliseconds(time.monotonic() - start_time)
+                    }
+        elif time_table_nodes == 'fc':
+            start_time = time.monotonic()
+            while (winner_node != self.target) and (not exception):
 
-                        for i in range(1, len(m_arr)):
-                            if winner_weight <= m_arr[i][next_loc - 1]:
-                                start_index, next_loc = pointers[i][next_loc - 1]
-                            else:
-                                start_index, next_loc = pointers[i][next_loc]
+                exception = _check_running_time(start_time, duration, "Dijkstra")
 
-                            node = reachable_nodes[i]
-                            self._update_vertex_with_node_index_fractional_cascading_bus_profile(winner_node,
-                                                                                                 winner_weight,
-                                                                                                 out, node, start_index)
-                    for node in self.graph.walking_nodes.get(winner_node, []):
+                m_arr = self.graph.m_arr_fractional.get(winner_node)
+                pointers = self.graph.pointers.get(winner_node)
+                reachable_nodes = self.graph.reachable_nodes.get(winner_node)
+                out = self.graph.graph.get(winner_node)
 
-                        self._update_vertex_with_node_index_fractional_cascading_walk_profile(winner_node,
-                                                                                              winner_weight, out, node)
+                if pointers:
+                    start_index, next_loc = pointers[0][bisect_left(m_arr[0], winner_weight)]
 
-                    try:
-                        winner_node, winner_weight = self.candidate_priorities.popitem()
-                    except IndexError:
-                        message = f"Target {self.target} not reachable from node {self.source}"
-                        logging.warning(message)
-                        return {
-                            'path': [],
-                            'routes': [],
-                            'roots': [],
-                            'arrival': math.inf,
-                            'duration': to_milliseconds(time.monotonic() - start_time)
-                        }
-            else:
-                start_time = time.monotonic()
-                while (winner_node != self.target) and (not exception):
+                    node = reachable_nodes[0]
+                    self._update_vertex_with_node_index_fractional_cascading_bus_profile(winner_node,
+                                                                                         winner_weight,
+                                                                                         out, node, start_index)
 
-                    exception = _check_running_time(start_time, duration, "Dijkstra")
+                    for i in range(1, len(m_arr)):
+                        if winner_weight <= m_arr[i][next_loc - 1]:
+                            start_index, next_loc = pointers[i][next_loc - 1]
+                        else:
+                            start_index, next_loc = pointers[i][next_loc]
 
-                    departure = bisect_left(self.graph.nodes_schedule[winner_node], winner_weight)
-                    nodes_indexes = self.graph.position_in_edge[winner_node].get(departure) #{nodeA: start_index, nodeB: start_index}
+                        node = reachable_nodes[i]
+                        self._update_vertex_with_node_index_fractional_cascading_bus_profile(winner_node,
+                                                                                             winner_weight,
+                                                                                             out, node,
+                                                                                             start_index)
+                for node in self.graph.walking_nodes.get(winner_node, []):
+                    self._update_vertex_with_node_index_fractional_cascading_walk_profile(winner_node,
+                                                                                          winner_weight, out,
+                                                                                          node)
 
-                    for node, f in self.graph.graph[winner_node].items():
-                        self._update_vertex_with_node_index(node, winner_node, winner_weight, nodes_indexes)
+                try:
+                    winner_node, winner_weight = self.candidate_priorities.popitem()
+                except IndexError:
+                    message = f"Target {self.target} not reachable from node {self.source}"
+                    logging.warning(message)
+                    return {
+                        'path': [],
+                        'routes': [],
+                        'roots': [],
+                        'arrival': math.inf,
+                        'duration': to_milliseconds(time.monotonic() - start_time)
+                    }
 
-                    try:
-                        winner_node, winner_weight = self.candidate_priorities.popitem()
-                    except IndexError:
-                        message = f"Target {self.target} not reachable from node {self.source}"
-                        logging.warning(message)
-                        return {
-                            'path': [],
-                            'routes': [],
-                            'roots': [],
-                            'arrival': math.inf,
-                            'duration': to_milliseconds(time.monotonic() - start_time)
-                        }
         else:
             start_time = time.monotonic()
             while (winner_node != self.target) and (not exception):
@@ -178,8 +193,8 @@ class Dijkstra:
             self.candidate_roots[node] = self.candidate_roots[winner_node] + [node]
             self.candidate_route_names[node] = self.candidate_route_names[winner_node] + route_names
 
-    def _update_vertex_with_node_index(self, node: int, winner_node: int, winner_weight: int,
-                                       nodes_indexes: Dict[int, int]):
+    def _update_vertex_with_node_index_cst(self, node: int, winner_node: int, winner_weight: int,
+                                           nodes_indexes: Dict[int, int]):
         """
         Update vertex in TTN mode
 
