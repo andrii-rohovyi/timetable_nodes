@@ -1,10 +1,10 @@
 import math
-from binary_search import bisect_left
+from helpers.binary_search import bisect_left
 import logging
 import time
 
-from timetable import Timetable
-from utils import to_milliseconds
+from data_structures.timetable import Timetable
+from helpers.utils import to_milliseconds
 
 
 class ConnectionScanAlgorithm:

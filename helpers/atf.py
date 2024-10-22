@@ -1,9 +1,9 @@
 from typing import List, Tuple
 import math
 # from bisect import bisect_left
-from binary_search import bisect_left
+from helpers.binary_search import bisect_left
 
-from trip import Walk, Bus
+from helpers.trip import Walk, Bus
 
 
 class ATF:

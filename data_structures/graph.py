@@ -6,11 +6,11 @@ from tqdm import tqdm
 import heapdict
 from copy import copy
 # from bisect import bisect_left
-from binary_search import bisect_left
+from helpers.binary_search import bisect_left
 from typing import Set, Dict
 
-from atf import ATF, min_atf
-from trip import Bus, Walk
+from helpers.atf import ATF, min_atf
+from helpers.trip import Bus, Walk
 
 
 class TransportGraph:

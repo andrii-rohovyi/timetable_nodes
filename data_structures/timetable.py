@@ -7,7 +7,7 @@ class Timetable:
                  transport_connections: pd.DataFrame,
                  walk_connections: pd.DataFrame):
         """
-        Class, which represent Multimodal Transport Network.
+        Class, which represent Multimodal Transport Network as a Timetable for CSA.
         It is __init__ by 2 data frames about transport and walk information over the city
         :param transport_connections: pd.DataFrame. File format related to network_temporal_day.csv by link: https://zenodo.org/records/1136378
         :param walk_connections: File format related to network_walk.csv by link: https://zenodo.org/records/1136378
