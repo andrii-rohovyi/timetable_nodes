@@ -1,10 +1,10 @@
 import math
-from helpers.binary_search import bisect_left
+from binary_search import bisect_left
 import logging
 import time
 
-from data_structures.timetable import Timetable
-from helpers.utils import to_milliseconds
+from timetable import Timetable
+from utils import to_milliseconds
 
 
 class ConnectionScanAlgorithm:
@@ -48,7 +48,7 @@ class ConnectionScanAlgorithm:
         while True:
             reiterate = False
 
-            if self.s.get(self.target, math.inf) <= row['dep_time_ut']:
+            if self.s.get(self.target, math.inf) < row['dep_time_ut']:
                 return {
                     'path': self.path[self.target],
                     'routes': self.routes[self.target],
@@ -59,7 +59,7 @@ class ConnectionScanAlgorithm:
             if self.s.get(row['from_stop_I'], math.inf) <= row['dep_time_ut']:
                 arrival_to_stop = self.s.get(row['to_stop_I'], math.inf)
                 if row['arr_time_ut'] < arrival_to_stop:
-                    if (row['arr_time_ut'] == row['dep_time_ut']) & (arrival_to_stop != math.inf):
+                    if row['arr_time_ut'] == row['dep_time_ut']:
                         reiterate = True
                     self.s[row['to_stop_I']] = row['arr_time_ut']
                     self.routes[row['to_stop_I']] = self.routes[row['from_stop_I']] + [row['route_I']]
@@ -85,11 +85,19 @@ class ConnectionScanAlgorithm:
             if index < len(self.graph.transport_connections_df):
                 row = self.graph.transport_connections_df[index]
             else:
-                message = f"Target {self.target} not reachable from node {self.source}"
-                logging.warning(message)
-                return {
-                    'path': [],
-                    'routes': [],
-                    'arrival': math.inf,
-                    'duration': to_milliseconds(time.monotonic() - start_time)
-                }
+                if self.s.get(self.target):
+                    return {
+                        'path': self.path[self.target],
+                        'routes': self.routes[self.target],
+                        'arrival': self.s[self.target],
+                        'duration': to_milliseconds(time.monotonic() - start_time)
+                    }
+                else:
+                    message = f"Target {self.target} not reachable from node {self.source}"
+                    logging.warning(message)
+                    return {
+                        'path': [],
+                        'routes': [],
+                        'arrival': math.inf,
+                        'duration': to_milliseconds(time.monotonic() - start_time)
+                    }
