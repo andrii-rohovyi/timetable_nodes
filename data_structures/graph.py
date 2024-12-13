@@ -7,7 +7,7 @@ import heapdict
 from copy import copy
 # from bisect import bisect_left
 from helpers.binary_search import bisect_left
-from typing import Set, Dict
+from typing import Set, Dict, Union
 
 from helpers.atf import ATF, min_atf
 from helpers.trip import Bus, Walk
@@ -16,23 +16,26 @@ from helpers.trip import Bus, Walk
 class TransportGraph:
 
     def __init__(self,
-                 transport_connections: pd.DataFrame,
-                 walk_connections: pd.DataFrame):
+                 walk_connections: pd.DataFrame,
+                 transport_connections: Union[pd.DataFrame, None] = None):
         """
         Class, which represent Multimodal Transport Network.
         It is __init__ by 2 data frames about transport and walk information over the city
         :param transport_connections: pd.DataFrame. File format related to network_temporal_day.csv by link: https://zenodo.org/records/1136378
         :param walk_connections: File format related to network_walk.csv by link: https://zenodo.org/records/1136378
         """
+        if transport_connections:
 
-        transport_connections_df = transport_connections.copy(deep=True)
-        transport_connections_df = transport_connections_df.sort_values(by='dep_time_ut')
-        transport_connections_df['dep_arr'] = list(zip(transport_connections_df['dep_time_ut'],
-                                                       transport_connections_df['arr_time_ut']))
-        transport_connections_df['route_I'] = transport_connections_df['route_I'].astype(str)
-        transport_connections_dict = transport_connections_df.groupby(by=['from_stop_I', 'to_stop_I']
-                                                                      ).agg({'dep_arr': list, 'route_I': list}
-                                                                            ).to_dict('index')
+            transport_connections_df = transport_connections.copy(deep=True)
+            transport_connections_df = transport_connections_df.sort_values(by='dep_time_ut')
+            transport_connections_df['dep_arr'] = list(zip(transport_connections_df['dep_time_ut'],
+                                                           transport_connections_df['arr_time_ut']))
+            transport_connections_df['route_I'] = transport_connections_df['route_I'].astype(str)
+            transport_connections_dict = transport_connections_df.groupby(by=['from_stop_I', 'to_stop_I']
+                                                                          ).agg({'dep_arr': list, 'route_I': list}
+                                                                                ).to_dict('index')
+        else:
+            transport_connections_dict = {}
 
         walk_connections_dict = walk_connections.set_index(['from_stop_I', 'to_stop_I'])['d_walk'].to_dict()
 
