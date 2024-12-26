@@ -24,7 +24,7 @@ class TransportGraph:
         :param transport_connections: pd.DataFrame. File format related to network_temporal_day.csv by link: https://zenodo.org/records/1136378
         :param walk_connections: File format related to network_walk.csv by link: https://zenodo.org/records/1136378
         """
-        if transport_connections:
+        if type(transport_connections) is pd.DataFrame:
 
             transport_connections_df = transport_connections.copy(deep=True)
             transport_connections_df = transport_connections_df.sort_values(by='dep_time_ut')
