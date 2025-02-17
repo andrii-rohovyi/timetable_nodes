@@ -1,15 +1,15 @@
-from typing import List, Tuple
+from typing import List, Tuple, Union
 import math
 # from bisect import bisect_left
 from helpers.binary_search import bisect_left
 
-from helpers.trip import Walk, Bus
+from helpers.trip import Walk, Bus, Transfers
 
 
 class ATF:
     __slots__ = "walk", 'buses', 'size'
 
-    def __init__(self, walk: Walk = None, buses: List[Bus] = None):
+    def __init__(self, walk: Union[Walk, Transfers] = None, buses: List[Bus] = None):
         """
         Arrival Time Function.
         More detailed you can find
@@ -48,6 +48,36 @@ class ATF:
                 if self.walk:
                     if self.buses[i].a - self.buses[i].d <= self.walk.w:
                         r += [self.buses[i]]
+                else:
+                    r += [self.buses[i]]
+                i += 1
+        self.buses = r
+        self.size = len(r)
+
+    def custom_cut(self):
+        """
+        Method for filtering dominated connections in ATF
+        More detailed this procedure described by the link
+         by link: https://oliviermarty.net/docs/olivier_marty_contraction_hierarchies_rapport.pdf
+        :return:
+        """
+        r = list()
+        i = 0
+        while i < self.size:
+            if r:
+                d, a = r[-1].d, r[-1].a
+                if self.buses[i].a > a:
+                    if d < self.buses[i].d:
+                        if self.walk:
+                            r.append(self.buses[i])
+                        else:
+                            r.append(self.buses[i])
+                    i += 1
+                else:
+                    r.pop()
+            else:
+                if self.walk:
+                    r += [self.buses[i]]
                 else:
                     r += [self.buses[i]]
                 i += 1
@@ -159,6 +189,26 @@ class ATF:
             route_names = self.buses[start_index].route_names
         if self.walk:
             walk_time = t + self.walk.w
+            if walk_time < l:
+                return walk_time, self.walk.nodes, self.walk.route_names
+        return l, sequence_nodes, route_names
+
+    def arrival_custom(self, t: int, walking_speed: int, bicycle_speed: int) -> Tuple[int, List[int], List[str]]:
+        """
+        Calculate arrival time to next station
+        :param t: start_time
+        :return:
+        """
+        l = math.inf
+        sequence_nodes = []
+        route_names = []
+        start_index = bisect_left(self.buses, t, key=lambda x: x.d, lo=0, hi=self.size)
+        if start_index < self.size:
+            l = self.buses[start_index].a
+            sequence_nodes = self.buses[start_index].nodes
+            route_names = self.buses[start_index].route_names
+        if self.walk:
+            walk_time = t + self.walk.w(walking_speed, bicycle_speed)
             if walk_time < l:
                 return walk_time, self.walk.nodes, self.walk.route_names
         return l, sequence_nodes, route_names
