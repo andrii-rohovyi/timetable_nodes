@@ -14,12 +14,14 @@ class CustomizedRAPTOR:
     def __init__(self, graph: CustomizedRAPTOR_DS, start_time: int, start_node: int, end_node: int, walking_speed: int,
                  max_rounds: int = sys.maxsize):
         """
-
+        Modified version of RAPTOR algorithm, adopted for custom speed
         ----------
-        graph: Timetable datastructure
-        start_time: unix_start_time
-        start_node: index of start node
-        end_node: index of end node
+        graph: CustomizedRAPTOR_DS datastructure
+        start_time: int unix_start_time
+        start_node: int index of start node
+        end_node: int index of end node
+        walking_speed: int walking speed in m/s
+        max_rounds: int: max rounds in RAPTOR algorithm
         """
         self.graph = graph
 
@@ -41,6 +43,19 @@ class CustomizedRAPTOR:
         self.earliest_arrival_routes[start_node] = []
 
     def departure_trip(self, route, stop, arrival_time):
+        """
+        Method for finding clothest departure trip by the route, stop and arrival time
+
+        Parameters
+        ----------
+        route
+        stop
+        arrival_time
+
+        Returns
+        -------
+
+        """
         key = (route, stop)
         if key not in self.trip_finder_dep_time:
             return False
@@ -49,6 +64,12 @@ class CustomizedRAPTOR:
         return self.trip_finder_trip[key][start_index] if start_index < len(departure_times) else False
 
     def shortest_path(self):
+        """
+        Implementation of RAPTOR algorithm by the paper: https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf
+        Returns
+        -------
+
+        """
         start_time = time.monotonic()
         marked_stops = {self.source}
         new_marked_stops = set()
@@ -145,12 +166,14 @@ class McCustomizedRAPTOR:
     def __init__(self, graph: CustomizedRAPTOR_DS, start_time: int, start_node: int, end_node: int, walking_speed: int,
                  max_rounds: int = sys.maxsize):
         """
-
+        Realisation of McRARTOR with customized speed
         ----------
-        graph: Timetable datastructure
-        start_time: unix_start_time
-        start_node: index of start node
-        end_node: index of end node
+        graph: CustomizedRAPTOR_DS datastructure
+        start_time: int unix_start_time
+        start_node: int index of start node
+        end_node: int index of end node
+        walking_speed: int walking speed in m/s
+        max_rounds: int: max rounds in RAPTOR algorithm
         """
         self.graph = graph
 
@@ -184,8 +207,8 @@ class McCustomizedRAPTOR:
         Adds a new (arrival_time, walking_duration) tuple to the list, ensuring that
         no tuple dominates another.
 
-        :param current_list: List of existing tuples [(arrival_time, walking_duration), ...]
-        :param new_tuple: Tuple (arrival_time, walking_duration) to be added
+        :param pareto_paths: List of existing Paths
+        :param new_path: new Path, which is characterised by the (arrival_time, walking_duration) to be added
         :return: Updated list of tuples
 
         Parameters
@@ -211,6 +234,12 @@ class McCustomizedRAPTOR:
         return updated_list, True
 
     def shortest_path(self):
+        """
+        Method for finding Pareto Optimal shprtest paths by the arrival_time and walking_duration criteria
+        Returns
+        -------
+
+        """
         start_time = time.monotonic()
         marked_stops = {self.source}
         new_marked_stops = set()
@@ -240,15 +269,17 @@ class McCustomizedRAPTOR:
                 current_trip_ids = dict()
                 for i in range(stp_idx, self.graph.routes_lens[route] + 1):
                     p_i_arr = self.graph.stops_dict[(route, i)]
+
                     current_trip_ids_new = dict()
                     for path, current_trip_id in current_trip_ids.items():
 
                         arr_t = self.graph.trip_to_time.get((current_trip_id, i))
 
                         if arr_t is not None:
+
                             new_path = Path(sequence_nodes=path.sequence_nodes + [p_i_arr],
                                             sequence_route_names=(path.sequence_route_names
-                                                                  + [self.graph.route_match[route]]),
+                                                                  + [self.graph.route_dict[current_trip_id]]),
                                             cost=(arr_t, path.cost[1]))
 
                             self.earliest_arrival[round_num][p_i_arr], add_new_element = self.add_to_non_dominated_list(
@@ -256,8 +287,8 @@ class McCustomizedRAPTOR:
 
                             _, add_new_element_target = self.add_to_non_dominated_list(
                                 self.earliest_arrival_star.get(self.target, []), new_path)
-
                             if add_new_element and add_new_element_target:
+
                                 current_trip_ids_new[new_path] = current_trip_id
                                 self.earliest_arrival_star[p_i_arr] = self.earliest_arrival[round_num][p_i_arr]
                                 marked_stops.add(p_i_arr)
