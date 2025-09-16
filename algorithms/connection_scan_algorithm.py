@@ -234,7 +234,7 @@ class CustomizedConnectionScanAlgorithm:
 
     def shortest_path(self):
         """
-        Finding shortest path with CSA algorithm Figure 4 in paper.
+        Finding shortest path.
         Returns
         -------
 
@@ -270,6 +270,7 @@ class CustomizedConnectionScanAlgorithm:
                     self.s[row['to_stop_I']] = row['arr_time_ut']
                     self.routes[row['to_stop_I']] = self.routes[row['from_stop_I']] + [row['route_I']]
                     self.path[row['to_stop_I']] = self.path[row['from_stop_I']] + [row['to_stop_I']]
+
 
                     for node, f in self.graph.walk_graph[row['to_stop_I']].items():
                         walk_arr = row['arr_time_ut'] + f.w(walking_speed=self.walking_speed)
@@ -311,9 +312,9 @@ class CustomizedConnectionScanAlgorithm:
 
 class McCustomizedConnectionScanAlgorithm:
     def __init__(self, graph: CustomizedTimetable, start_time: int, start_node: int, end_node: int, walking_speed: int,
-                 ):
+                 max_rounds: int = False):
         """
-        Implementation of the connection scan algorithm. Link on the paper: https://arxiv.org/pdf/1703.05997
+        Implementation of the MCSA. Link on the paper: https://drops.dagstuhl.de/storage/00lipics/lipics-vol144-esa2019/LIPIcs.ESA.2019.14/LIPIcs.ESA.2019.14.pdf
         Parameters
         ----------
         graph: Timetable datastructure
@@ -322,13 +323,14 @@ class McCustomizedConnectionScanAlgorithm:
         end_node: index of end node
         """
         self.graph = graph
+        self.max_rounds = max_rounds
 
         self.source = start_node
         self.target = end_node
         cost = (start_time, 0)
         self.start_path = Path(sequence_nodes=[self.source],
                                sequence_route_names=['start'],
-                               cost=cost)
+                               cost=cost, transfers_numbers=0)
         self.start_time = start_time
         self.walking_speed = walking_speed
         self.s = {start_node: [self.start_path]}
@@ -339,8 +341,8 @@ class McCustomizedConnectionScanAlgorithm:
         Adds a new (arrival_time, walking_duration) tuple to the list, ensuring that
         no tuple dominates another.
 
-        :param current_list: List of existing tuples [(arrival_time, walking_duration), ...]
-        :param new_tuple: Tuple (arrival_time, walking_duration) to be added
+        :param pareto_paths: List of existing Paths
+        :param new_path: new Path, which is characterised by the (arrival_time, walking_duration) to be added
         :return: Updated list of tuples
 
         Parameters
@@ -367,7 +369,7 @@ class McCustomizedConnectionScanAlgorithm:
 
     def shortest_path(self):
         """
-        Finding shortest path with CSA algorithm Figure 4 in paper.
+        Finding shortest path with MCSA
         Returns
         -------
 
@@ -376,9 +378,14 @@ class McCustomizedConnectionScanAlgorithm:
         for node, f in self.graph.walk_graph[self.source].items():
             walk_duration = f.w(walking_speed=self.walking_speed)
             arrival_time = self.start_time + walk_duration
-            self.s[node] = [Path(sequence_nodes=f.nodes + [node],
-                                 sequence_route_names=f.route_names + ['walk'],
-                                 cost=(arrival_time, walk_duration))]
+            if self.max_rounds is not False:
+                self.s[node] = [Path(sequence_nodes=f.nodes,
+                                     sequence_route_names=f.route_names,
+                                     cost=(arrival_time, walk_duration), transfers_numbers=0)]
+            else:
+                self.s[node] = [Path(sequence_nodes=f.nodes + [node],
+                                     sequence_route_names=f.route_names,
+                                     cost=(arrival_time, walk_duration))]
 
         index = bisect_left(self.graph.departure_times, self.start_time)
         row = self.graph.transport_connections_df[index]
@@ -389,20 +396,54 @@ class McCustomizedConnectionScanAlgorithm:
             reiterate = False
 
             for path_from in self.s.get(row['from_stop_I'], []):
+
                 if path_from.cost[0] <= row['dep_time_ut']:
-                    new_path = Path(sequence_nodes=path_from.sequence_nodes + [row['to_stop_I']],
-                                    sequence_route_names=path_from.sequence_route_names + [row['route_I']],
-                                    cost=(row['arr_time_ut'], path_from.cost[1]))
-                    self.s[row['to_stop_I']], add_new_element = self.add_to_non_dominated_list(
-                        self.s.get(row['to_stop_I'], []), new_path)
+
+                    if self.max_rounds is not False:
+
+                        if path_from.sequence_route_names[-1] != row['route_I']:
+                            new_path = Path(sequence_nodes=path_from.sequence_nodes + [row['to_stop_I']],
+                                            sequence_route_names=path_from.sequence_route_names + [row['route_I']],
+                                            cost=(row['arr_time_ut'], path_from.cost[1]),
+                                            transfers_numbers=path_from.transfers_numbers+1)
+
+                        else:
+                            new_path = Path(sequence_nodes=path_from.sequence_nodes + [row['to_stop_I']],
+                                            sequence_route_names=path_from.sequence_route_names + [row['route_I']],
+                                            cost=(row['arr_time_ut'], path_from.cost[1]),
+                                            transfers_numbers=path_from.transfers_numbers)
+
+                        if new_path.transfers_numbers <= self.max_rounds:
+                            self.s[row['to_stop_I']], add_new_element = self.add_to_non_dominated_list(
+                                self.s.get(row['to_stop_I'], []), new_path)
+
+                        else:
+                            add_new_element = False
+                    else:
+                        new_path = Path(sequence_nodes=path_from.sequence_nodes + [row['to_stop_I']],
+                                        sequence_route_names=path_from.sequence_route_names + [row['route_I']],
+                                        cost=(row['arr_time_ut'], path_from.cost[1]))
+                        self.s[row['to_stop_I']], add_new_element = self.add_to_non_dominated_list(
+                            self.s.get(row['to_stop_I'], []), new_path)
+
                     if add_new_element:
+
                         if row['arr_time_ut'] == row['dep_time_ut']:
                             reiterate = True
                         for node, f in self.graph.walk_graph[row['to_stop_I']].items():
                             walk_duration = f.w(walking_speed=self.walking_speed)
-                            walk_path = Path(sequence_nodes=new_path.sequence_nodes + [node],
-                                             sequence_route_names=new_path.sequence_route_names + ['walk'],
-                                             cost=(new_path.cost[0] + walk_duration, new_path.cost[1] + walk_duration))
+                            if self.max_rounds is not False:
+                                walk_path = Path(sequence_nodes=new_path.sequence_nodes + [node],
+                                                 sequence_route_names=new_path.sequence_route_names + ['walk'],
+                                                 cost=(
+                                                 new_path.cost[0] + walk_duration, new_path.cost[1] + walk_duration),
+                                                 transfers_numbers=new_path.transfers_numbers)
+                            else:
+                                walk_path = Path(sequence_nodes=new_path.sequence_nodes + [node],
+                                                 sequence_route_names=new_path.sequence_route_names + ['walk'],
+                                                 cost=(new_path.cost[0] + walk_duration,
+                                                       new_path.cost[1] + walk_duration))
+
                             self.s[node], add_new_element = self.add_to_non_dominated_list(
                                 self.s.get(node, []), walk_path)
 

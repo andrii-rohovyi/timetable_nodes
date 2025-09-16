@@ -219,8 +219,8 @@ def min_atf(f1: ATF, f2: ATF) -> ATF:
     Minimum of 2 ATF function.
     Description could be found by link :
     https://oliviermarty.net/docs/olivier_marty_contraction_hierarchies_rapport.pdf
-    :param f1:
-    :param f2:
+    :param f1: ATF
+    :param f2: ATF
     :return:
     """
     if f1.walk and f2.walk:
