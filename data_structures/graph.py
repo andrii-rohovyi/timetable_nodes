@@ -7,10 +7,11 @@ import heapdict
 from copy import copy
 # from bisect import bisect_left
 from helpers.binary_search import bisect_left
+from helpers.red_black_trees import RedBlackTree
 from typing import Set, Dict, Union
 
 from helpers.atf import ATF, min_atf
-from helpers.trip import Bus, Walk
+from helpers.trip import Bus, Walk, WalkTransfer, Transfer
 
 
 class TransportGraph:
@@ -43,6 +44,7 @@ class TransportGraph:
         self.in_nodes = defaultdict(dict)
         self.nodes = set()
         self.nodes_schedule = defaultdict(list)
+        self.nodes_trees = defaultdict(RedBlackTree)
         self.position_in_edge = defaultdict(dict)
 
         for adjacent_node, node in set(transport_connections_dict.keys()).union(set(walk_connections_dict.keys())):
@@ -177,24 +179,41 @@ class TransportGraph:
 
         return new_graph
 
-    def optimize_binary_search(self):
+    def optimize_binary_search(self, method='cst'):
         """
         TTN algorithm over the standard graph
         :return:
         """
-        for node1, out in tqdm(self.graph.items()):
-            self.position_in_edge[node1] = {}
-            full_list = []
-            for node2, f in out.items():
-                full_list += [bus.d for bus in f.buses]
-
-            full_list = list(set(full_list))
-            full_list.sort()
-            self.nodes_schedule[node1] = full_list
-            for i, dep in enumerate(full_list):
-                self.position_in_edge[node1][i] = {}
+        if method == 'cst':
+            for node1, out in tqdm(self.graph.items()):
+                self.position_in_edge[node1] = {}
+                full_list = []
                 for node2, f in out.items():
-                    self.position_in_edge[node1][i][node2] = bisect_left(f.buses, dep, key=lambda x: x.d)
+                    full_list += [bus.d for bus in f.buses]
+
+                full_list = list(set(full_list))
+                full_list.sort()
+                self.nodes_schedule[node1] = full_list
+                for i, dep in enumerate(full_list):
+                    self.position_in_edge[node1][i] = {}
+                    for node2, f in out.items():
+                        self.position_in_edge[node1][i][node2] = bisect_left(f.buses, dep, key=lambda x: x.d)
+        else:
+            for node1, out in tqdm(self.graph.items()):
+                full_list = []
+                for node2, f in out.items():
+                    full_list += [bus.d for bus in f.buses]
+
+                full_list = list(set(full_list))
+                full_list.sort()
+
+                tree = RedBlackTree()
+                for dep in full_list:
+                    nodes_indexes = {}
+                    for node2, f in out.items():
+                        nodes_indexes[node2] = bisect_left(f.buses, dep, key=lambda x: x.d)
+                    tree.insert(dep, nodes_indexes)
+                self.nodes_trees[node1] = tree
 
     def fractional_cascading_precomputation(self, sort_strategy='ascending'):
         if sort_strategy == 'ascending':
@@ -285,6 +304,7 @@ class ContactionTransportGraph(TransportGraph):
         self.geometrical_containers = {}
         self.nodes_schedule = defaultdict(list)
         self.position_in_edge = defaultdict(dict)
+        self.nodes_trees = {}
         self.depth = defaultdict(int)
         self.contraction_priority = heapdict.heapdict()
         self.m_arr_fractional = {}
@@ -339,6 +359,42 @@ class ContactionTransportGraph(TransportGraph):
                 self.position_in_edge[node1][i] = {}
                 for node2, f in out.items():
                     self.position_in_edge[node1][i][node2] = bisect_left(f.buses, dep, key=lambda x: x.d)
+
+    def optimize_binary_search(self, method='cst'):
+        """
+        TTN algorithm over the standard graph
+        :return:
+        """
+        if method == 'cst':
+            for node1, out in tqdm(self.graph.items()):
+                self.position_in_edge[node1] = {}
+                full_list = []
+                for node2, f in out.items():
+                    full_list += [bus.d for bus in f.buses]
+
+                full_list = list(set(full_list))
+                full_list.sort()
+                self.nodes_schedule[node1] = full_list
+                for i, dep in enumerate(full_list):
+                    self.position_in_edge[node1][i] = {}
+                    for node2, f in out.items():
+                        self.position_in_edge[node1][i][node2] = bisect_left(f.buses, dep, key=lambda x: x.d)
+        else:
+            for node1, out in tqdm(self.graph.items()):
+                full_list = []
+                for node2, f in out.items():
+                    full_list += [bus.d for bus in f.buses]
+
+                full_list = list(set(full_list))
+                full_list.sort()
+
+                tree = RedBlackTree()
+                for dep in full_list:
+                    nodes_indexes = {}
+                    for node2, f in out.items():
+                        nodes_indexes[node2] = bisect_left(f.buses, dep, key=lambda x: x.d)
+                    tree.insert(dep, nodes_indexes)
+                self.nodes_trees[node1] = tree
 
     def fractional_cascading_precomputation(self, sort_strategy='ascending'):
         if sort_strategy == 'ascending':
@@ -449,3 +505,145 @@ class ContactionTransportGraph(TransportGraph):
             self.m_arr_fractional_old[node1] = m_arr
             self.reachable_nodes_old[node1] = reachable_nodes
             self.walking_nodes_old[node1] = walking_nodes
+
+
+class CustomizedTransportGraph(TransportGraph):
+
+    def __init__(self,
+                 walk_connections: pd.DataFrame,
+                 transport_connections: Union[pd.DataFrame, None] = None):
+        """
+        Class, which represent Multimodal Transport Network.
+        It is __init__ by 2 data frames about transport and walk information over the city
+        :param transport_connections: pd.DataFrame. File format related to network_temporal_day.csv by link: https://zenodo.org/records/1136378
+        :param walk_connections:
+        """
+        if type(transport_connections) is pd.DataFrame:
+
+            transport_connections_df = transport_connections.copy(deep=True)
+            transport_connections_df = transport_connections_df.sort_values(by='dep_time_ut')
+            transport_connections_df['dep_arr'] = list(zip(transport_connections_df['dep_time_ut'],
+                                                           transport_connections_df['arr_time_ut']))
+            transport_connections_df['route_I'] = transport_connections_df['route_I'].astype(str)
+            transport_connections_dict = transport_connections_df.groupby(by=['from_stop_I', 'to_stop_I']
+                                                                          ).agg({'dep_arr': list, 'route_I': list}
+                                                                                ).to_dict('index')
+        else:
+            transport_connections_dict = {}
+
+        self.graph = defaultdict(dict)
+        self.in_nodes = defaultdict(dict)
+        self.nodes = set()
+        self.nodes_schedule = defaultdict(list)
+        self.position_in_edge = defaultdict(dict)
+
+        walk_connections_dict = walk_connections.set_index(['from_stop_I', 'to_stop_I'])['d_walk'].to_dict()
+
+        for adjacent_node, node in set(transport_connections_dict.keys()).union(set(walk_connections_dict.keys())):
+            nodes_sequence = [adjacent_node, node]
+            walk_distance = walk_connections_dict.get((adjacent_node, node))
+            walk = None
+            if walk_distance is not None:
+                walk = WalkTransfer(nodes=nodes_sequence, distance=walk_distance)
+            transport_connections_nodes_dict = transport_connections_dict.get((adjacent_node, node),
+                                                                              {'dep_arr': [], 'route_I': []})
+            buses = [Bus(nodes=nodes_sequence, c=c,
+                         route_names=[transport_connections_nodes_dict['route_I'][i]])
+                     for i, c in enumerate(transport_connections_nodes_dict['dep_arr'])]
+            g = ATF(walk=walk, buses=buses)
+            g.custom_cut()
+            if walk or buses:
+                self.in_nodes[node][adjacent_node] = self.graph[adjacent_node][node] = g
+                self.nodes.add(adjacent_node)
+                self.nodes.add(node)
+
+        self.m_arr_fractional = {}
+        self.pointers = {}
+        self.reachable_nodes = {}
+        self.walking_nodes = {}
+        self.nodes_trees = defaultdict(RedBlackTree)
+
+
+class CustomizedTransportGraphNotFullNew(TransportGraph):
+
+    def __init__(self,
+                 transfer_connections: pd.DataFrame,
+                 transport_connections: Union[pd.DataFrame, None] = None):
+        """
+        Class, which represent Multimodal Transport Network.
+        It is __init__ by 2 data frames about transport and walk information over the city
+        :param transport_connections: pd.DataFrame. File format related to network_temporal_day.csv by link: https://zenodo.org/records/1136378
+        :param transfer_connections:
+        """
+        if type(transport_connections) is pd.DataFrame:
+
+            transport_connections_df = transport_connections.copy(deep=True)
+            transport_connections_df = transport_connections_df.sort_values(by='dep_time_ut')
+            transport_connections_df['dep_arr'] = list(zip(transport_connections_df['dep_time_ut'],
+                                                           transport_connections_df['arr_time_ut']))
+            transport_connections_df['route_I'] = transport_connections_df['route_I'].astype(str)
+            transport_connections_dict = transport_connections_df.groupby(by=['from_stop_I', 'to_stop_I']
+                                                                          ).agg({'dep_arr': list, 'route_I': list}
+                                                                                ).to_dict('index')
+        else:
+            transport_connections_dict = {}
+
+        transfer_connections_pairs = set(map(tuple,
+                                             transfer_connections[['node_from', 'node_to']].drop_duplicates().values))
+
+        self.graph = defaultdict(dict)
+        self.graph_bicycle_to_bicycle = defaultdict(dict)
+        self.graph_bicycle_to_node = defaultdict(dict)
+        self.nodes = set()
+        self.nodes_schedule = defaultdict(list)
+        self.position_in_edge = defaultdict(dict)
+
+        for adjacent_node, node in tqdm(set(transport_connections_dict.keys()).union(transfer_connections_pairs)):
+            nodes_sequence = [adjacent_node, node]
+            transport_connections_nodes_dict = transport_connections_dict.get((adjacent_node, node),
+                                                                              {'dep_arr': [], 'route_I': []})
+            buses = [Bus(nodes=nodes_sequence, c=c,
+                         route_names=[transport_connections_nodes_dict['route_I'][i]])
+                     for i, c in enumerate(transport_connections_nodes_dict['dep_arr'])]
+            walk = None
+            for index, row in transfer_connections[(transfer_connections['node_from'] == adjacent_node)
+                                                   & (transfer_connections['node_to'] == node)].iterrows():
+                if np.isnan(row['bicycle_node_to']):
+                    walk = Transfer(nodes=nodes_sequence, distance=row['walking_distance'], mode='walk')
+
+                else:
+                    transfer = Transfer(nodes=[adjacent_node, row['bicycle_node_from']],
+                                        distance=row['walk_distance_from'], mode='walk')
+
+                    g = ATF(walk=transfer, buses=[])
+                    self.graph[adjacent_node][row['bicycle_node_from']] = g
+                    self.nodes.add(adjacent_node)
+                    self.nodes.add(row['bicycle_node_from'])
+
+                    transfer = Transfer(nodes=[row['bicycle_node_from'], row['bicycle_node_to']],
+                                        distance=row['bycycle_distance'], mode='bicycle')
+
+                    g = ATF(walk=transfer, buses=[])
+                    self.graph_bicycle_to_bicycle[row['bicycle_node_from']][row['bicycle_node_to']] = g
+                    self.nodes.add(row['bicycle_node_from'])
+                    self.nodes.add(row['bicycle_node_to'])
+
+                    transfer = Transfer(nodes=[row['bicycle_node_to'], node],
+                                        distance=row['walk_distance_to'], mode='walk')
+
+                    g = ATF(walk=transfer, buses=[])
+                    self.graph_bicycle_to_node[row['bicycle_node_to']][node] = g
+                    self.nodes.add(row['bicycle_node_to'])
+                    self.nodes.add(node)
+
+            g = ATF(walk=walk, buses=buses)
+            g.custom_cut()
+            if walk or buses:
+                self.graph[adjacent_node][node] = g
+                self.nodes.add(adjacent_node)
+                self.nodes.add(node)
+
+        self.m_arr_fractional = {}
+        self.pointers = {}
+        self.reachable_nodes = {}
+        self.walking_nodes = {}
